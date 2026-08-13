@@ -37,8 +37,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Content-Type": "application/json"
         }
         data = {
-            # ↓↓↓ ЗАМЕНИТЕ НА АКТУАЛЬНУЮ БЕСПЛАТНУЮ МОДЕЛЬ С https://openrouter.ai/models ↓↓↓
-            "model": "google/gemini-1.5-flash-8b",  # стабильная бесплатная модель
+            "model": "mistralai/mistral-7b-instruct:free",  # проверенная бесплатная модель
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_text}
@@ -47,23 +46,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "max_tokens": 300
         }
         response = requests.post(OPENROUTER_URL, headers=headers, json=data, timeout=30)
-        response.raise_for_status()
+        
+        # Детальная диагностика при ошибке
+        if response.status_code != 200:
+            error_body = response.text
+            raise Exception(f"HTTP {response.status_code}: {error_body}")
+        
         reply_text = response.json()["choices"][0]["message"]["content"]
 
-    except requests.exceptions.RequestException as e:
-        error_detail = f"❌ Ошибка соединения с OpenRouter: {str(e)}"
-        await update.message.reply_text(error_detail)
-        print(f"Ошибка OpenRouter (сеть): {e}")
-        return
-    except (KeyError, json.JSONDecodeError) as e:
-        error_detail = f"⚠️ Неожиданный ответ от сервиса: {str(e)}"
-        await update.message.reply_text(error_detail)
-        print(f"Ошибка OpenRouter (данные): {e}")
-        return
     except Exception as e:
-        error_detail = f"🔄 Техническая ошибка: {str(e)}"
+        # Отправляем в Telegram подробную ошибку
+        error_detail = f"❌ Ошибка: {str(e)}"
         await update.message.reply_text(error_detail)
-        print(f"Ошибка OpenRouter (общая): {e}")
+        print(f"Полная ошибка: {e}")
         return
 
     await update.message.reply_text(reply_text)
