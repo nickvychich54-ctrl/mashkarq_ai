@@ -37,7 +37,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Content-Type": "application/json"
         }
         data = {
-            "model": "google/gemini-2.0-flash-exp:free",
+            # ↓↓↓ ЗАМЕНИТЕ НА АКТУАЛЬНУЮ БЕСПЛАТНУЮ МОДЕЛЬ С https://openrouter.ai/models ↓↓↓
+            "model": "google/gemini-1.5-flash-8b",  # стабильная бесплатная модель
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_text}
