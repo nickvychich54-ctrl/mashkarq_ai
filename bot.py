@@ -11,7 +11,6 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-# Личность Машкары
 SYSTEM_PROMPT = (
     "Ты — Машкара, добрая, ироничная и очень любопытная собеседница. "
     "Ты обожаешь задавать неожиданные вопросы (про суперсилы, странные истории, мечты) "
@@ -32,14 +31,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
 
-    # 1. Получаем ответ от OpenRouter
     try:
         headers = {
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
             "Content-Type": "application/json"
         }
         data = {
-            "model": "google/gemini-2.0-flash-exp:free",  # обновлённая бесплатная модель
+            "model": "google/gemini-2.0-flash-exp:free",
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_text}
@@ -48,33 +46,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "max_tokens": 300
         }
         response = requests.post(OPENROUTER_URL, headers=headers, json=data, timeout=30)
-        response.raise_for_status()  # выбросит исключение при статусе >= 400
-
+        response.raise_for_status()
         reply_text = response.json()["choices"][0]["message"]["content"]
 
     except requests.exceptions.RequestException as e:
-        # Ошибка сети или HTTP-статус
         error_detail = f"❌ Ошибка соединения с OpenRouter: {str(e)}"
         await update.message.reply_text(error_detail)
         print(f"Ошибка OpenRouter (сеть): {e}")
         return
     except (KeyError, json.JSONDecodeError) as e:
-        # Ошибка в структуре ответа
         error_detail = f"⚠️ Неожиданный ответ от сервиса: {str(e)}"
         await update.message.reply_text(error_detail)
         print(f"Ошибка OpenRouter (данные): {e}")
         return
     except Exception as e:
-        # Любая другая ошибка
         error_detail = f"🔄 Техническая ошибка: {str(e)}"
         await update.message.reply_text(error_detail)
         print(f"Ошибка OpenRouter (общая): {e}")
         return
 
-    # 2. Отправляем текст
     await update.message.reply_text(reply_text)
 
-    # 3. Отправляем голосовое через gTTS
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
             tts = gTTS(reply_text, lang="ru")
@@ -95,7 +87,6 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     print("Бот с OpenRouter запущен...")
 
-    # Исправление для Python 3.14
     try:
         loop = asyncio.get_event_loop()
     except RuntimeError:
