@@ -2,6 +2,7 @@ import os
 import tempfile
 import requests
 import json
+import asyncio  # <-- ДОБАВЛЕН ИМПОРТ
 from gtts import gTTS
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
@@ -77,7 +78,15 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     print("Бот с OpenRouter запущен...")
-    app.run_polling()
+
+    # ---- ИСПРАВЛЕНИЕ ДЛЯ PYTHON 3.14 ----
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    loop.run_until_complete(app.run_polling())
+    # --------------------------------------
 
 if __name__ == "__main__":
     main()
