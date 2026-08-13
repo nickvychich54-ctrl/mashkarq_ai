@@ -2,7 +2,7 @@ import os
 import tempfile
 import requests
 import json
-import asyncio  # <-- ДОБАВЛЕН ИМПОРТ
+import asyncio
 from gtts import gTTS
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
@@ -11,7 +11,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-# Личность Машкары (та же, что была)
+# Личность Машкары
 SYSTEM_PROMPT = (
     "Ты — Машкара, добрая, ироничная и очень любопытная собеседница. "
     "Ты обожаешь задавать неожиданные вопросы (про суперсилы, странные истории, мечты) "
@@ -19,7 +19,6 @@ SYSTEM_PROMPT = (
     "но по-дружески. Ты всегда стремишься узнать о собеседнике что-то новое."
 )
 
-# URL OpenRouter API
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 # -------------------------------------------------
@@ -33,14 +32,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
 
-    # 1. Получаем ответ от OpenRouter (Gemini Flash бесплатно)
+    # 1. Получаем ответ от OpenRouter
     try:
         headers = {
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
             "Content-Type": "application/json"
         }
         data = {
-            "model": "google/gemini-1.5-flash",  # бесплатная модель
+            "model": "google/gemini-2.0-flash-exp:free",  # обновлённая бесплатная модель
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_text}
@@ -48,12 +47,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "temperature": 0.9,
             "max_tokens": 300
         }
-        response = requests.post(OPENROUTER_URL, headers=headers, json=data)
-        response.raise_for_status()
+        response = requests.post(OPENROUTER_URL, headers=headers, json=data, timeout=30)
+        response.raise_for_status()  # выбросит исключение при статусе >= 400
+
         reply_text = response.json()["choices"][0]["message"]["content"]
+
+    except requests.exceptions.RequestException as e:
+        # Ошибка сети или HTTP-статус
+        error_detail = f"❌ Ошибка соединения с OpenRouter: {str(e)}"
+        await update.message.reply_text(error_detail)
+        print(f"Ошибка OpenRouter (сеть): {e}")
+        return
+    except (KeyError, json.JSONDecodeError) as e:
+        # Ошибка в структуре ответа
+        error_detail = f"⚠️ Неожиданный ответ от сервиса: {str(e)}"
+        await update.message.reply_text(error_detail)
+        print(f"Ошибка OpenRouter (данные): {e}")
+        return
     except Exception as e:
-        reply_text = "Ой, у меня сейчас лапки... Попробуй ещё раз!"
-        print(f"Ошибка OpenRouter: {e}")
+        # Любая другая ошибка
+        error_detail = f"🔄 Техническая ошибка: {str(e)}"
+        await update.message.reply_text(error_detail)
+        print(f"Ошибка OpenRouter (общая): {e}")
+        return
 
     # 2. Отправляем текст
     await update.message.reply_text(reply_text)
@@ -70,7 +86,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         os.remove(audio_path)
     except Exception as e:
-        await update.message.reply_text("Не смогла озвучить ответ 😅")
+        await update.message.reply_text("Не смогла озвучить ответ, но текст я отправила 😅")
         print(f"Ошибка TTS: {e}")
 
 def main():
@@ -79,14 +95,13 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     print("Бот с OpenRouter запущен...")
 
-    # ---- ИСПРАВЛЕНИЕ ДЛЯ PYTHON 3.14 ----
+    # Исправление для Python 3.14
     try:
         loop = asyncio.get_event_loop()
     except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
     loop.run_until_complete(app.run_polling())
-    # --------------------------------------
 
 if __name__ == "__main__":
     main()
